@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>28卒 ITインターン推薦</title>
+    <link rel="stylesheet" href="internships.css">
+</head>
+<body>
+    <main class="app-shell">
+        <section class="toolbar" aria-labelledby="pageTitle">
+            <div>
+                <p class="eyebrow">Internship Finder</p>
+                <h1 id="pageTitle">28卒 ITインターン推薦</h1>
+            </div>
+            <a class="nav-link" href="/">アプリ一覧</a>
+        </section>
+
+        <section class="search-panel" aria-label="推薦条件">
+            <div class="field">
+                <label for="interest">志望領域</label>
+                <select id="interest">
+                    <option value="Webサービス・自社開発">Webサービス・自社開発</option>
+                    <option value="SIer・システム開発">SIer・システム開発</option>
+                    <option value="AI・データサイエンス">AI・データサイエンス</option>
+                    <option value="セキュリティ">セキュリティ</option>
+                    <option value="ITコンサル・DX">ITコンサル・DX</option>
+                    <option value="ゲーム・エンタメ">ゲーム・エンタメ</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="jobType">希望職種</label>
+                <select id="jobType">
+                    <option value="ソフトウェアエンジニア">ソフトウェアエンジニア</option>
+                    <option value="インフラ・クラウドエンジニア">インフラ・クラウドエンジニア</option>
+                    <option value="データサイエンティスト">データサイエンティスト</option>
+                    <option value="プロダクトマネージャー">プロダクトマネージャー</option>
+                    <option value="ITコンサルタント">ITコンサルタント</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="location">勤務地・参加形式</label>
+                <select id="location">
+                    <option value="オンライン中心">オンライン中心</option>
+                    <option value="東京・首都圏">東京・首都圏</option>
+                    <option value="関西">関西</option>
+                    <option value="地方から参加しやすい">地方から参加しやすい</option>
+                    <option value="対面で社員と関われる">対面で社員と関われる</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="priority">重視する条件</label>
+                <select id="priority">
+                    <option value="実務に近い開発経験">実務に近い開発経験</option>
+                    <option value="選考直結・早期選考">選考直結・早期選考</option>
+                    <option value="初心者でも参加しやすい">初心者でも参加しやすい</option>
+                    <option value="メンターや社員交流が多い">メンターや社員交流が多い</option>
+                    <option value="ポートフォリオに残せる成果物">ポートフォリオに残せる成果物</option>
+                </select>
+            </div>
+
+            <div class="field field-wide">
+                <label for="experience">学生の経験</label>
+                <textarea id="experience" rows="3" placeholder="例: JavaScriptで簡単なWebアプリを作成。基本情報の勉強中。チーム開発は未経験。"></textarea>
+            </div>
+
+            <div class="actions">
+                <div class="field count-field">
+                    <label for="count">件数</label>
+                    <input id="count" type="number" min="3" max="12" value="6">
+                </div>
+                <button id="generateBtn" type="button">推薦を表示</button>
+            </div>
+        </section>
+
+        <section class="notice" aria-live="polite">
+            <strong>期日の扱い:</strong>
+            締切は変わるため、生成結果に日付が出ても応募前に必ず企業の公式採用ページで確認してください。
+        </section>
+
+        <section class="results-head">
+            <div>
+                <h2>おすすめインターン</h2>
+                <p id="resultSummary">条件を入力して推薦を生成してください。</p>
+            </div>
+            <button id="clearBtn" type="button">クリア</button>
+        </section>
+
+        <section id="loading" class="loading" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            推薦を生成中です
+        </section>
+
+        <section id="results" class="results" aria-label="推薦結果"></section>
+    </main>
+
+    <script>
+        const generateBtn = document.getElementById('generateBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const resultSummary = document.getElementById('resultSummary');
+
+        generateBtn.addEventListener('click', generateInternships);
+        clearBtn.addEventListener('click', () => {
+            results.innerHTML = '';
+            resultSummary.textContent = '条件を入力して推薦を生成してください。';
+        });
+
+        async function generateInternships() {
+            const count = Number(document.getElementById('count').value);
+            if (!Number.isInteger(count) || count < 3 || count > 12) {
+                alert('件数は3〜12の範囲で入力してください。');
+                return;
+            }
+
+            setLoading(true);
+            results.innerHTML = '';
+            resultSummary.textContent = '生成中です。';
+
+            try {
+                const response = await fetch('/api/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: '28卒 ITインターン推薦',
+                        promptKey: 'internships',
+                        count,
+                        currentDate: new Date().toISOString().slice(0, 10),
+                        interest: getValue('interest'),
+                        jobType: getValue('jobType'),
+                        location: getValue('location'),
+                        priority: getValue('priority'),
+                        experience: getValue('experience') || '未入力'
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'API error');
+                }
+
+                const payload = await response.json();
+                const items = Array.isArray(payload.data) ? payload.data : [];
+                if (items.length === 0) {
+                    throw new Error('推薦データが空でした。');
+                }
+
+                renderResults(items);
+                resultSummary.textContent = `${items.length}件の候補を表示しています。`;
+            } catch (error) {
+                console.error(error);
+                results.innerHTML = `<div class="empty">推薦の生成に失敗しました。${escapeHtml(error.message)}</div>`;
+                resultSummary.textContent = 'エラーが発生しました。';
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function renderResults(items) {
+            results.innerHTML = items.map((item, index) => `
+                <article class="intern-card">
+                    <div class="card-top">
+                        <span class="rank">${String(index + 1).padStart(2, '0')}</span>
+                        <h3>${escapeHtml(item.companyName || '企業名未設定')}</h3>
+                    </div>
+                    <dl class="info-grid">
+                        <div>
+                            <dt>期日</dt>
+                            <dd>${escapeHtml(item.deadline || '公式サイトで要確認')}</dd>
+                        </div>
+                        <div>
+                            <dt>提出書類</dt>
+                            <dd>${escapeHtml(item.documents || '公式サイトで要確認')}</dd>
+                        </div>
+                        <div class="wide">
+                            <dt>インターン内容</dt>
+                            <dd>${escapeHtml(item.content || '内容は公式サイトで要確認')}</dd>
+                        </div>
+                    </dl>
+                    <div class="reason">
+                        <strong>おすすめ理由</strong>
+                        <p>${escapeHtml(item.fitReason || '入力条件との相性を確認してください。')}</p>
+                    </div>
+                    <p class="check-note">${escapeHtml(item.checkNote || '募集年度・応募対象・締切は公式採用ページで最終確認してください。')}</p>
+                </article>
+            `).join('');
+        }
+
+        function getValue(id) {
+            return document.getElementById(id).value.trim();
+        }
+
+        function setLoading(isLoading) {
+            loading.hidden = !isLoading;
+            generateBtn.disabled = isLoading;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>

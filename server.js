@@ -20,11 +20,17 @@ const MODELS = {
 };
 const MODEL = MODELS[PROVIDER];
 
-let promptTemplate;
+const PROMPT_FILES = {
+    default: 'prompt.md',
+    internships: 'prompts/internships.md',
+};
+
 try {
-    promptTemplate = fs.readFileSync('prompt.md', 'utf8');
+    Object.values(PROMPT_FILES).forEach((filePath) => {
+        fs.accessSync(filePath, fs.constants.R_OK);
+    });
 } catch (error) {
-    console.error('Error reading prompt.md:', error);
+    console.error('Error reading prompt file:', error);
     process.exit(1);
 }
 
@@ -45,7 +51,11 @@ app.post('/api/', async (req, res) => {
     try {
         // title と、変数置換に使うその他のキーを受け取る
         // （prompt.md がプロンプトを定義するので、リクエストでの上書きは許可しない）
-        const { title = 'Generated Content', ...variables } = req.body;
+        const { title = 'Generated Content', promptKey = 'default', ...variables } = req.body;
+
+        if (!Object.prototype.hasOwnProperty.call(PROMPT_FILES, promptKey)) {
+            return res.status(400).json({ error: 'Invalid promptKey' });
+        }
 
         // count が指定されている場合は 1〜MAX_COUNT の範囲に収める
         if (variables.count !== undefined) {
@@ -58,6 +68,7 @@ app.post('/api/', async (req, res) => {
         }
 
         // prompt.md のテンプレート変数 ${key} をリクエストの値で置換する
+        const promptTemplate = fs.readFileSync(PROMPT_FILES[promptKey], 'utf8');
         const finalPrompt = fillTemplate(promptTemplate, variables);
 
         let result;

@@ -103,11 +103,18 @@
         const loading = document.getElementById('loading');
         const results = document.getElementById('results');
         const resultSummary = document.getElementById('resultSummary');
+        let activeRequest = null;
+        let requestId = 0;
 
         generateBtn.addEventListener('click', generateInternships);
         clearBtn.addEventListener('click', () => {
+            if (activeRequest) {
+                activeRequest.abort();
+                activeRequest = null;
+            }
             results.innerHTML = '';
             resultSummary.textContent = '条件を入力して推薦を生成してください。';
+            setLoading(false);
         });
 
         async function generateInternships() {
@@ -116,6 +123,12 @@
                 alert('件数は3〜12の範囲で入力してください。');
                 return;
             }
+
+            if (activeRequest) {
+                activeRequest.abort();
+            }
+            const currentRequestId = ++requestId;
+            activeRequest = new AbortController();
 
             setLoading(true);
             results.innerHTML = '';
@@ -135,7 +148,8 @@
                         location: getValue('location'),
                         priority: getValue('priority'),
                         experience: getValue('experience') || '未入力'
-                    })
+                    }),
+                    signal: activeRequest.signal
                 });
 
                 if (!response.ok) {
@@ -144,50 +158,89 @@
                 }
 
                 const payload = await response.json();
+                if (currentRequestId !== requestId) {
+                    return;
+                }
                 const items = Array.isArray(payload.data) ? payload.data : [];
                 if (items.length === 0) {
                     throw new Error('推薦データが空でした。');
                 }
 
                 renderResults(items);
-                resultSummary.textContent = `${items.length}件の候補を表示しています。`;
+                resultSummary.textContent = payload.cached
+                    ? `${items.length}件の候補を表示しています。前回と同じ条件の結果を再表示しました。`
+                    : `${items.length}件の候補を表示しています。`;
             } catch (error) {
+                if (error.name === 'AbortError') {
+                    return;
+                }
                 console.error(error);
                 results.innerHTML = `<div class="empty">推薦の生成に失敗しました。${escapeHtml(error.message)}</div>`;
                 resultSummary.textContent = 'エラーが発生しました。';
             } finally {
-                setLoading(false);
+                if (currentRequestId === requestId) {
+                    activeRequest = null;
+                    setLoading(false);
+                }
             }
         }
 
         function renderResults(items) {
-            results.innerHTML = items.map((item, index) => `
-                <article class="intern-card">
-                    <div class="card-top">
-                        <span class="rank">${String(index + 1).padStart(2, '0')}</span>
-                        <h3>${escapeHtml(item.companyName || '企業名未設定')}</h3>
-                    </div>
-                    <dl class="info-grid">
-                        <div>
-                            <dt>期日</dt>
-                            <dd>${escapeHtml(item.deadline || '公式サイトで要確認')}</dd>
-                        </div>
-                        <div>
-                            <dt>提出書類</dt>
-                            <dd>${escapeHtml(item.documents || '公式サイトで要確認')}</dd>
-                        </div>
-                        <div class="wide">
-                            <dt>インターン内容</dt>
-                            <dd>${escapeHtml(item.content || '内容は公式サイトで要確認')}</dd>
-                        </div>
-                    </dl>
-                    <div class="reason">
-                        <strong>おすすめ理由</strong>
-                        <p>${escapeHtml(item.fitReason || '入力条件との相性を確認してください。')}</p>
-                    </div>
-                    <p class="check-note">${escapeHtml(item.checkNote || '募集年度・応募対象・締切は公式採用ページで最終確認してください。')}</p>
-                </article>
-            `).join('');
+            const fragment = document.createDocumentFragment();
+            items.forEach((item, index) => {
+                fragment.appendChild(createInternshipCard(item, index));
+            });
+            results.replaceChildren(fragment);
+        }
+
+        function createInternshipCard(item, index) {
+            const card = document.createElement('article');
+            card.className = 'intern-card';
+
+            const cardTop = document.createElement('div');
+            cardTop.className = 'card-top';
+            const rank = document.createElement('span');
+            rank.className = 'rank';
+            rank.textContent = String(index + 1).padStart(2, '0');
+            const title = document.createElement('h3');
+            title.textContent = item.companyName || '企業名未設定';
+            cardTop.append(rank, title);
+
+            const infoGrid = document.createElement('dl');
+            infoGrid.className = 'info-grid';
+            infoGrid.append(
+                createInfoBlock('期日', item.deadline || '公式サイトで要確認'),
+                createInfoBlock('提出書類', item.documents || '公式サイトで要確認'),
+                createInfoBlock('インターン内容', item.content || '内容は公式サイトで要確認', 'wide')
+            );
+
+            const reason = document.createElement('div');
+            reason.className = 'reason';
+            const reasonLabel = document.createElement('strong');
+            reasonLabel.textContent = 'おすすめ理由';
+            const reasonText = document.createElement('p');
+            reasonText.textContent = item.fitReason || '入力条件との相性を確認してください。';
+            reason.append(reasonLabel, reasonText);
+
+            const checkNote = document.createElement('p');
+            checkNote.className = 'check-note';
+            checkNote.textContent = item.checkNote || '募集年度・応募対象・締切は公式採用ページで最終確認してください。';
+
+            card.append(cardTop, infoGrid, reason, checkNote);
+            return card;
+        }
+
+        function createInfoBlock(label, value, className = '') {
+            const wrapper = document.createElement('div');
+            if (className) {
+                wrapper.className = className;
+            }
+            const term = document.createElement('dt');
+            term.textContent = label;
+            const description = document.createElement('dd');
+            description.textContent = value;
+            wrapper.append(term, description);
+            return wrapper;
         }
 
         function getValue(id) {

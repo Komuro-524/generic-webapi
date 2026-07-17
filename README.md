@@ -41,17 +41,12 @@ PORT=8080
 
 ### 3. Configure LLM Provider
 
-Edit the `PROVIDER` constant near the top of `server.js`:
+The defaults are OpenAI and `gpt-5.5`. Override them with environment variables when needed:
 
-```javascript
-// For OpenAI (default) -> gpt-5.5
-const PROVIDER = 'openai';
-
-// For Gemini -> gemini-3.5-flash
-// const PROVIDER = 'gemini';
+```env
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-5.5
 ```
-
-The model is selected automatically from the `MODELS` map based on `PROVIDER`.
 
 ### 4. Start Server
 
@@ -60,6 +55,17 @@ npm start
 ```
 
 Visit `http://localhost:8080`
+
+## Deploy to Render
+
+This repository includes `render.yaml` for a Render Blueprint deployment.
+
+1. Push the repository to GitHub.
+2. In Render, choose **New > Blueprint** and select the repository.
+3. Enter `OPENAI_API_KEY` when Render asks for the secret value.
+4. Deploy, then open `https://<your-service>.onrender.com/api/health`.
+
+A successful configuration returns `"status":"ok"`. Do not upload `.env.local` or put an API key in an HTML file. The browser calls the same-origin `/api/` route, so it works on both localhost and the Render domain without changing the HTML.
 
 ## How It Works
 

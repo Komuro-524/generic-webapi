@@ -1,29 +1,31 @@
 const express = require('express');
 const fs = require('fs');
-// API Key などの環境変数は .env.local から読み込む
-require('dotenv').config({ path: '.env.local' });
+const path = require('path');
+// ローカルでは .env.local、Render ではダッシュボードの環境変数を使う。
+// dotenv の override はデフォルトで false なので、Render 側の値が優先される。
+require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ===== 設定 =====
 // 利用するLLMプロバイダを選択します（'openai' または 'gemini'）
-const PROVIDER = 'openai';
+const PROVIDER = process.env.LLM_PROVIDER || 'openai';
 
 // プロバイダごとに利用するモデル
 const MODELS = {
     openai: 'gpt-5.5',        // OpenAI（デフォルト）
     gemini: 'gemini-3.5-flash', // Google Gemini
 };
-const MODEL = MODELS[PROVIDER];
+const MODEL = process.env.LLM_MODEL || MODELS[PROVIDER];
 
 const PROMPT_FILES = {
-    default: 'prompt.md',
-    internships: 'prompts/internships.md',
-    brushup: 'prompts/Brushup.md',
+    default: path.join(__dirname, 'prompt.md'),
+    internships: path.join(__dirname, 'prompts/internships.md'),
+    brushup: path.join(__dirname, 'prompts/Brushup.md'),
 };
 
 const PROMPT_TEMPLATES = {};
@@ -48,9 +50,24 @@ const responseCache = new Map();
 
 // public/ 内の .html 一覧を返す（index.html がこの一覧を使ってリンクを表示する）
 app.get('/api/pages', (req, res) => {
-    const files = fs.readdirSync('public')
+    const files = fs.readdirSync(path.join(__dirname, 'public'))
         .filter(name => name.endsWith('.html') && name !== 'index.html');
     res.json(files);
+});
+
+// Render のヘルスチェックと設定確認用（APIキー自体は返さない）
+app.get('/api/health', (req, res) => {
+    const requiredKey = PROVIDER === 'openai' ? 'OPENAI_API_KEY'
+        : PROVIDER === 'gemini' ? 'GEMINI_API_KEY'
+            : null;
+    const configured = Boolean(requiredKey && process.env[requiredKey]);
+
+    res.status(configured ? 200 : 503).json({
+        status: configured ? 'ok' : 'configuration_error',
+        provider: PROVIDER,
+        model: MODEL || null,
+        apiKeyConfigured: configured,
+    });
 });
 
 // 問題数の上限（過剰なリクエストでトークンを浪費しないようにする）
@@ -410,7 +427,7 @@ function extractArray(responseText) {
     return arrayData;
 }
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server listening on port ${PORT}`);
     console.log(`Config: ${PROVIDER} - ${MODEL}`);
 });
